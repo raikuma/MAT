@@ -1,0 +1,1 @@
+python generate_image.py --network pretrained/Places_512.pkl --dpath /home/ciplab/Downloads/extra_ours5r20_v0_testset_full_300000/render --mpath /home/ciplab/Downloads/extra_ours5r20_v0_testset_full_300000/mask --outdir /home/ciplab/Downloads/extra_ours5r20_v0_testset_full_300000/refine --mask_inv

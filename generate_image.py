@@ -6,6 +6,9 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
+import warnings
+warnings.filterwarnings("ignore")
+
 """Generate images using pretrained network pickle."""
 import cv2
 import pyspng
@@ -58,6 +61,45 @@ def named_params_and_buffers(module):
     return list(module.named_parameters()) + list(module.named_buffers())
 
 
+def pad_image(img):
+    # Get the size of the original image
+    if len(img.shape) == 2:
+        h, w = img.shape
+    else:
+        c, h, w = img.shape
+
+    # Set the size of the output image
+    new_h, new_w = 1024, 1024
+
+    # Calculate the padding needed on each side of the image
+    x_pad = (new_w - w) // 2
+    y_pad = (new_h - h) // 2
+
+    # Pad the image with zeros at the center
+    if len(img.shape) == 2:
+        padded_img = np.zeros((new_h, new_w), dtype=np.uint8)
+        padded_img[y_pad:y_pad+h, x_pad:x_pad+w] = img
+    else:
+        padded_img = np.zeros((c, new_h, new_w), dtype=np.uint8)
+        padded_img[:, y_pad:y_pad+h, x_pad:x_pad+w] = img
+
+    # Return the padded image
+    return padded_img
+
+def center_crop(img, h, w):
+    # Get the size of the original image
+    height, width, _ = img.shape
+
+    # Calculate the coordinates of the top-left corner of the crop
+    left = (width - w) // 2
+    top = (height - h) // 2
+
+    # Crop the image
+    cropped_img = img[top:top+h, left:left+w]
+
+    # Return the cropped image
+    return cropped_img
+
 @click.command()
 @click.pass_context
 @click.option('--network', 'network_pkl', help='Network pickle filename', required=True)
@@ -67,6 +109,7 @@ def named_params_and_buffers(module):
 @click.option('--trunc', 'truncation_psi', type=float, help='Truncation psi', default=1, show_default=True)
 @click.option('--noise-mode', help='Noise mode', type=click.Choice(['const', 'random', 'none']), default='const', show_default=True)
 @click.option('--outdir', help='Where to save the output images', type=str, required=True, metavar='DIR')
+@click.option('--mask_inv', is_flag=True, help='Whether to invert the mask', default=False, show_default=True)
 def generate_images(
     ctx: click.Context,
     network_pkl: str,
@@ -76,6 +119,7 @@ def generate_images(
     truncation_psi: float,
     noise_mode: str,
     outdir: str,
+    mask_inv: bool,
 ):
     """
     Generate images using pretrained network pickle.
@@ -136,19 +180,25 @@ def generate_images(
             iname = os.path.basename(ipath).replace('.jpg', '.png')
             print(f'Prcessing: {iname}')
             image = read_image(ipath)
+            h, w = image.shape[-2:]
+            image = pad_image(image)
             image = (torch.from_numpy(image).float().to(device) / 127.5 - 1).unsqueeze(0)
 
             if mpath is not None:
                 mask = cv2.imread(mask_list[i], cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
+                mask = pad_image(mask)
                 mask = torch.from_numpy(mask).float().to(device).unsqueeze(0).unsqueeze(0)
             else:
                 mask = RandomMask(resolution) # adjust the masking ratio by using 'hole_range'
                 mask = torch.from_numpy(mask).float().to(device).unsqueeze(0)
+            if mask_inv:
+                mask = 1 - mask
 
             z = torch.from_numpy(np.random.randn(1, G.z_dim)).to(device)
             output = G(image, mask, z, label, truncation_psi=truncation_psi, noise_mode=noise_mode)
             output = (output.permute(0, 2, 3, 1) * 127.5 + 127.5).round().clamp(0, 255).to(torch.uint8)
             output = output[0].cpu().numpy()
+            output = center_crop(output, h, w)
             PIL.Image.fromarray(output, 'RGB').save(f'{outdir}/{iname}')
 
 

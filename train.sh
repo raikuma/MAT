@@ -1,0 +1,21 @@
+python train.py \
+    --outdir=output_path \
+    --gpus=8 \
+    --batch=32 \
+    --metrics=fid36k5_full \
+    --data=training_data_path \
+    --data_val=val_data_path \
+    --dataloader=datasets.dataset_512.ImageFolderMaskDataset \
+    --mirror=True \
+    --cond=False \
+    --cfg=places512 \
+    --aug=noaug \
+    --generator=networks.mat.Generator \
+    --discriminator=networks.mat.Discriminator \
+    --loss=losses.loss.TwoStageLoss \
+    --pr=0.1 \
+    --pl=False \
+    --truncation=0.5 \
+    --style_mix=0.5 \
+    --ema=10 \
+    --lr=0.001

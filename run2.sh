@@ -1,0 +1,1 @@
+python generate_image.py --network pretrained/Places_512.pkl --dpath test_sets/Kubric/images --mpath test_sets/Kubric/errors --outdir result2
